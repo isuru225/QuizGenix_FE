@@ -6,7 +6,7 @@ export interface IUserInfoResponse {
     id: string;
     username: string,
     email: string,
-    grade: number,
+    studentGrade: number,
     role: number,
     admissionDate: string
 }

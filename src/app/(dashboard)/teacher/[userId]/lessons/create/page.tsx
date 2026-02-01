@@ -11,6 +11,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, ArrowLeft } from "lucide-react"
 import { useCreateLesson, ILessonRequest } from "@/features/teacher/hooks/useLessons"
+import { v4 as uuidv4 } from "uuid"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 
 // Yup validation schema
 const lessonSchema = yup.object({
@@ -32,19 +41,42 @@ const lessonSchema = yup.object({
 
 type LessonFormData = yup.InferType<typeof lessonSchema>
 
+const DRAFT_STORAGE_KEY = "lesson_draft"
+
 export default function CreateLessonPage() {
     const router = useRouter()
     const params = useParams()
     const userId = params?.userId as string
     const createLessonMutation = useCreateLesson(userId)
+    const [showConfirmDialog, setShowConfirmDialog] = React.useState(false)
 
     const {
         register,
         handleSubmit,
+        watch,
+        setValue,
         formState: { errors, isSubmitting },
     } = useForm<LessonFormData>({
         resolver: yupResolver(lessonSchema),
     })
+
+    // Watch form values to track changes
+    const formValues = watch()
+
+    // Load draft on component mount
+    React.useEffect(() => {
+        const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY)
+        if (savedDraft) {
+            try {
+                const draft = JSON.parse(savedDraft)
+                setValue("title", draft.title || "")
+                setValue("subject", draft.subject || "")
+                setValue("content", draft.content || "")
+            } catch (error) {
+                console.error("Failed to load draft:", error)
+            }
+        }
+    }, [setValue])
 
     async function onSubmit(data: LessonFormData) {
         try {
@@ -55,10 +87,70 @@ export default function CreateLessonPage() {
         }
     }
 
+    const handleBackClick = () => {
+        // Check if title field is filled
+        const titleValue = formValues.title?.trim()
+
+        if (!titleValue) {
+            // If title is empty, navigate back immediately
+            router.back()
+        } else {
+            // If title is filled, show confirmation dialog
+            setShowConfirmDialog(true)
+        }
+    }
+
+    const handleSaveAsDraft = () => {
+        // Get available lesson drafts
+        const lessonDrafts = localStorage.getItem(DRAFT_STORAGE_KEY)
+
+        if (lessonDrafts) {
+            // If drafts exist, add the new draft to the array
+            const drafts = JSON.parse(lessonDrafts)
+            drafts.push({
+                id: uuidv4(),
+                title: formValues.title || "",
+                subject: formValues.subject || "",
+                content: formValues.content || "",
+                createdAt: new Date().toISOString(),
+                status: "Draft",
+                teacherId: userId,
+            })
+            localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts))
+        } else {
+            // If no drafts exist, create a new array with the first draft
+            const drafts = [{
+                id: uuidv4(),
+                title: formValues.title || "",
+                subject: formValues.subject || "",
+                content: formValues.content || "",
+                createdAt: new Date().toISOString(),
+                status: "Draft",
+                teacherId: userId,
+            }]
+            localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts))
+        }
+
+        setShowConfirmDialog(false)
+        router.back()
+    }
+
+    const handleDiscard = () => {
+        // Clear any saved draft and navigate back
+        localStorage.removeItem(DRAFT_STORAGE_KEY)
+        setShowConfirmDialog(false)
+        router.back()
+    }
+
+    const handleCancel = () => {
+        // Just close the dialog, stay on the page
+        setShowConfirmDialog(false)
+    }
+
     return (
         <div className="space-y-6 max-w-2xl mx-auto">
             <div className="flex items-center mb-6">
-                <Button variant="ghost" className="pl-0" onClick={() => router.back()}>
+                <Button variant="ghost" className="pl-0" onClick={handleBackClick}>
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Lessons
                 </Button>
@@ -74,7 +166,7 @@ export default function CreateLessonPage() {
                 <form onSubmit={handleSubmit(onSubmit)}>
                     <CardContent className="space-y-4">
                         <div className="grid gap-2">
-                            <Label htmlFor="title">Lesson Title</Label>
+                            <Label htmlFor="title">Lesson Title*</Label>
                             <Input
                                 id="title"
                                 placeholder="e.g. Introduction to Calculus"
@@ -86,7 +178,7 @@ export default function CreateLessonPage() {
                             )}
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="subject">Subject</Label>
+                            <Label htmlFor="subject">Subject*</Label>
                             <Input
                                 id="subject"
                                 placeholder="e.g. Mathematics"
@@ -102,7 +194,7 @@ export default function CreateLessonPage() {
                             <Input id="content" placeholder="Link to PDF or Video" />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="description">Content</Label>
+                            <Label htmlFor="description">Content*</Label>
                             <textarea
                                 id="content"
                                 {...register("content")}
@@ -125,6 +217,29 @@ export default function CreateLessonPage() {
                     </CardFooter>
                 </form>
             </Card>
+
+            {/* Confirmation Dialog */}
+            <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Save as Draft?</DialogTitle>
+                        <DialogDescription>
+                            You have unsaved changes. Would you like to save this lesson as a draft before leaving?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={handleCancel}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleDiscard}>
+                            Discard
+                        </Button>
+                        <Button onClick={handleSaveAsDraft}>
+                            Save as Draft
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
