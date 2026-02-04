@@ -25,7 +25,6 @@ export const useLogin = () => {
             apiConfig.post<IAuthResponse>("/user/login", loginData),
 
         onSuccess: (data) => {
-            Cookies.set("token", data.token, { expires: 7 });
             queryClient.invalidateQueries({ queryKey: ["currentUser"] });
             console.log("Role:", data.role);
         },

@@ -15,5 +15,7 @@ export interface IQuestionTemp {
     tempId: string;
     content: string;
     possibleAnswers: string[];   // Array of 4 answers
-    correctAnswer: number;      // Index (0-3)
+    correctAnswer: number;
+    isAIGenerated: boolean;      // Index (0-3)
 }
+

@@ -1,23 +1,27 @@
+"use client";
+
 import axios from "axios";
 
 const api = axios.create({
     baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5115/api",
+    withCredentials: true,
     headers: {
         "Content-Type": "application/json",
     },
 });
 
-// Auto-attach JWT token if it exists
-api.interceptors.request.use((config) => {
-    if (typeof window !== "undefined") {
-        const token = localStorage.getItem("token"); // or get from cookie
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-    }
-    return config;
-});
-
+// api.interceptors.response.use(
+//     response => response,
+//     error => {
+//         if (error.response?.status === 401) {
+//             if (typeof window !== "undefined") {
+//                 // SPA-ish redirect to login
+//                 window.location.href = "/login";
+//             }
+//         }
+//         return Promise.reject(error);
+//     }
+// );
 
 export const apiConfig = {
     get: async <T>(url: string): Promise<T> => {

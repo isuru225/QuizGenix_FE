@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { mockStats } from "@/lib/mockData"
 import { useLessons, useCreateLesson } from "@/features/teacher/hooks/useLessons"
-import { PlusCircle, FileText } from "lucide-react"
+import { PlusCircle, FileText, PenLine } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 
 const DRAFT_STORAGE_KEY = "lesson_draft"
@@ -63,6 +63,10 @@ export default function LessonsPage() {
 
     const hasNoLessons = (!lessons || lessons.length === 0) && (!lessonDrafts || lessonDrafts.length === 0);
 
+    const editLessonHandler = (lesson: any) => {
+        router.push(`/teacher/${userId}/lessons/${lesson.id}/edit`);
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -94,7 +98,7 @@ export default function LessonsPage() {
                                     <CardDescription>{lesson.subject}</CardDescription>
                                 </div>
                                 <div className="rounded-full bg-secondary p-2">
-                                    <FileText className="h-4 w-4 text-primary" />
+                                    <PenLine className="h-4 w-4 text-primary cursor-pointer" onClick={() => editLessonHandler(lesson)} />
                                 </div>
                             </CardHeader>
                             <CardContent>

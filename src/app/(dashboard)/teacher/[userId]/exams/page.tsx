@@ -4,8 +4,8 @@ import Link from "next/link"
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { useExams } from "@/features/teacher/hooks/useExams"
-import { PlusCircle, FileText, Calendar, Clock } from "lucide-react"
+import { IExamResponse, useExams } from "@/features/teacher/hooks/useExams"
+import { PlusCircle, FileText, Calendar, Clock, PenLine } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 
 export default function ExamsPage() {
@@ -34,6 +34,39 @@ export default function ExamsPage() {
     const hasNoExams = !exams || exams.length === 0;
     console.log("Benz", exams)
 
+    const examStatusHandler = (startTime: Date, endTime: Date) => {
+        const now = new Date();
+        if (now < startTime) {
+            return 'Upcoming';
+        } else if (now >= startTime && now <= endTime) {
+            return 'Ongoing';
+        } else {
+            return 'Completed';
+        }
+    }
+
+    console.log("Swimming", exams);
+    const editExamHandler = (exam: IExamResponse) => {
+        const { questions, ...rest } = exam ?? {};
+
+        // const questionFormat = questions.map((question: any) => {
+        //     return {
+        //         content: question.questionText,
+        //         possibleAnswers: [question.optionA, question.optionB, question.optionC, question.optionD],
+        //         correctAnswer: question.correctAnswer,
+        //         isAIGenerated: question.isAIGenerated,
+        //     }
+        // })
+        // const examEditFormat = {
+        //     examInfo: rest,
+        //     questions: questionFormat
+        // }
+
+        // sessionStorage.setItem("examEdit", JSON.stringify(examEditFormat));
+
+        router.push(`/teacher/${userId}/exams/${exam.id}/edit`);
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -44,6 +77,10 @@ export default function ExamsPage() {
                 </Button>
             </div>
 
+            {/* sessionStorage.setItem("exam", JSON.stringify({
+            examInfo: { ...data, durationMinutes },
+            questions: sessionReader().questions
+        })) */}
             {hasNoExams ? (
                 <div className="flex flex-col items-center justify-center h-64 text-center border rounded-lg bg-muted/20">
                     <FileText className="h-10 w-10 text-muted-foreground mb-4" />
@@ -57,15 +94,15 @@ export default function ExamsPage() {
                 </div>
             ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {exams.map((exam: any) => (
+                    {exams.map((exam: IExamResponse) => (
                         <Card key={exam.id}>
                             <CardHeader className="flex flex-row items-start justify-between space-y-0 text-clip overflow-hidden">
                                 <div className="space-y-1 flex-1">
                                     <CardTitle className="text-lg">{exam.title}</CardTitle>
-                                    <CardDescription className="line-clamp-2">{exam.description}</CardDescription>
+                                    <CardDescription className="line-clamp-1">{exam.description}</CardDescription>
                                 </div>
                                 <div className="rounded-full bg-secondary p-2">
-                                    <FileText className="h-4 w-4 text-primary" />
+                                    <PenLine className="h-4 w-4 text-primary cursor-pointer" onClick={() => editExamHandler(exam)} />
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-3">
@@ -83,9 +120,13 @@ export default function ExamsPage() {
                                     <FileText className="h-4 w-4" />
                                     <span>{exam.questions?.length || 0} questions</span>
                                 </div>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <FileText className="h-4 w-4" />
+                                    <span>{exam.studentGrade || 0} Grade</span>
+                                </div>
                                 <div className="flex items-center justify-between mt-4">
                                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(exam.status)}`}>
-                                        {exam.status}
+                                        {examStatusHandler(new Date(exam.scheduledStartTime), new Date(exam.scheduledEndTime))}
                                     </span>
                                     <Button variant="ghost" size="sm">
                                         View Details

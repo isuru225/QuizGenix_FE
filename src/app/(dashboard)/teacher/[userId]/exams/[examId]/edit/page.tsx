@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import React, { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { yupResolver } from "@hookform/resolvers/yup"
@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, ArrowLeft, Plus, Trash2, ChevronRight, ChevronLeft, Check } from "lucide-react"
-import { useCreateExam, IExamRequest, IQuestion } from "@/features/teacher/hooks/useExams"
+import { useExam, useUpdateExam, IExamRequest, IQuestion, IExamResponse } from "@/features/teacher/hooks/useExams"
 import { IQuestionTemp } from "@/app/(dashboard)/teacher/[userId]/exams/create/interfaces"
 import { useLessons } from "@/features/teacher/hooks/useLessons"
 import {
@@ -40,18 +40,22 @@ interface ExamFormData extends ExamInfoFormData {
     durationMinutes?: number
 }
 
-export default function CreateExamPage() {
+export default function EditExamPage() {
     const router = useRouter()
     const params = useParams()
     const userId = params?.userId as string
-    const createExamMutation = useCreateExam(userId)
-    const { data: lessons, isLoading, error } = useLessons(userId)
+    const examId = params?.examId as string
+
+    const { data: existingExam, isLoading: isLoadingExam } = useExam(examId)
+    const { mutateAsync: updateExamMutation, isPending: isUpdatingExam } = useUpdateExam(userId, examId)
+    const { data: lessons, isLoading: isLoadingLessons } = useLessons(userId)
+
     // Multi-step state
-    const [currentStep, setCurrentStep] = React.useState(1)
-    const [examData, setExamData] = React.useState<Partial<ExamFormData>>({
+    const [currentStep, setCurrentStep] = useState(1)
+    const [examData, setExamData] = useState<Partial<ExamFormData>>({
         questions: []
     })
-    const [showConfirmDialog, setShowConfirmDialog] = React.useState(false)
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
     const {
         register: registerInfo,
@@ -71,35 +75,101 @@ export default function CreateExamPage() {
         },
     })
 
-    const sessionReader = () => {
-        if (typeof window === "undefined") return {}
-        const sessionData = sessionStorage.getItem("exam");
-        const exam = JSON.parse(sessionData || "{}")
-        return exam
+    const formatDateForInput = (dateString: string) => {
+        if (!dateString) return "";
+        const date = new Date(dateString);
+        const tzoffset = date.getTimezoneOffset() * 60000;
+        return new Date(date.getTime() - tzoffset).toISOString().slice(0, 16);
     }
 
-    // Load initial values from sessionStorage
-    React.useEffect(() => {
-        const savedExam = sessionStorage.getItem("exam")
-        if (savedExam) {
-            try {
-                const parsed = JSON.parse(savedExam)
-                console.log("Giant", parsed);
-                if (parsed.examInfo) {
-                    reset(parsed.examInfo)
-                    setExamData(prev => ({ ...prev, ...parsed.examInfo }))
-                }
-                if (parsed.questions) {
-                    setQuestions(parsed.questions)
-                }
-            } catch (e) {
-                console.error("Error loading exam draft", e)
-            }
-        }
-    }, [reset])
+    // Load initial values from API or sessionStorage
+    // React.useEffect(() => {
+    //     // Don't try to set form values until lessons are loaded
+    //     if (isLoadingLessons) return;
 
+    //     const savedExam = sessionStorage.getItem(`examEdit`)
+
+    //     if (savedExam) {
+    //         try {
+    //             const parsed = JSON.parse(savedExam)
+    //             if (parsed.examInfo) {
+    //                 const formattedInfo = {
+    //                     title: parsed.examInfo.title || "",
+    //                     description: parsed.examInfo.description || "",
+    //                     scheduledStartTime: formatDateForInput(parsed.examInfo.scheduledStartTime) || "",
+    //                     scheduledEndTime: formatDateForInput(parsed.examInfo.scheduledEndTime) || "",
+    //                     studentGrade: parsed.examInfo.studentGrade || 0,
+    //                     lessonId: parsed.examInfo.lessonId || "",
+    //                 }
+
+    //                 reset(formattedInfo) // No setTimeout needed!
+    //                 setExamData(prev => ({ ...prev, ...formattedInfo }))
+    //             }
+    //             if (parsed.questions) {
+    //                 setQuestions(parsed.questions)
+    //             }
+    //         } catch (e) {
+    //             console.error("Error loading exam draft", e)
+    //         }
+    //     } else if (existingExam) {
+    //         const initialInfo = {
+    //             title: existingExam.title,
+    //             description: existingExam.description,
+    //             scheduledStartTime: formatDateForInput(existingExam.scheduledStartTime),
+    //             scheduledEndTime: formatDateForInput(existingExam.scheduledEndTime),
+    //             studentGrade: existingExam.studentGrade,
+    //             lessonId: existingExam.lessonId,
+    //         }
+
+    //         reset(initialInfo) // No setTimeout needed!
+    //         setExamData(initialInfo)
+
+    //         const initialQuestions = existingExam.questions.map(q => ({
+    //             ...q,
+    //             tempId: uuidv4()
+    //         }))
+    //         setQuestions(initialQuestions)
+    //     }
+    // }, [existingExam, reset, examId, isLoadingLessons]) // Add isLoadingLessons!
+
+    useEffect(() => {
+        if (existingExam) {
+            console.log
+            const initialInfo = {
+                title: existingExam.title,
+                description: existingExam.description,
+                scheduledStartTime: formatDateForInput(existingExam.scheduledStartTime),
+                scheduledEndTime: formatDateForInput(existingExam.scheduledEndTime),
+                studentGrade: existingExam.studentGrade,
+                lessonId: existingExam.lessonId,
+            }
+
+            reset(initialInfo) // No setTimeout needed!
+            setExamData(initialInfo)
+
+            const formatQuestions: IQuestion[] = existingExam.questions.map(q => {
+                return {
+                    id: q.id,
+                    content: q.questionText,
+                    possibleAnswers: [q.optionA, q.optionB, q.optionC, q.optionD],
+                    correctAnswer: q.correctAnswer,
+                    isAIGenerated: q.isAIGenerated
+                }
+            })
+            setQuestions(formatQuestions)
+        }
+    }, [existingExam, reset, examId, isLoadingLessons])
+
+
+    //     export interface IQuestion {
+    //     id: string;
+    //     content: string;
+    //     possibleAnswers: string[];   // Array of 4 answers
+    //     correctAnswer: number;       // Index (0-3)
+    //     isAIGenerated: boolean;
+    // }
     // Step 2: Questions state
-    const [questions, setQuestions] = React.useState<IQuestionTemp[]>([])
+    const [questions, setQuestions] = React.useState<IQuestion[]>([])
     const [currentQuestion, setCurrentQuestion] = React.useState<Partial<IQuestion>>({
         content: "",
         possibleAnswers: ["", "", "", ""],
@@ -107,14 +177,17 @@ export default function CreateExamPage() {
         isAIGenerated: false,
     })
 
+    const sessionWriter = (info: any, qs: any) => {
+        sessionStorage.setItem(`examEdit`, JSON.stringify({
+            examInfo: info,
+            questions: qs
+        }))
+    }
+
     // Handle Step 1 submission
     const onSubmitExamInfo = (data: ExamInfoFormData) => {
         const durationMinutes = calculateDurationInMinutes(data.scheduledStartTime, data.scheduledEndTime);
-        console.log("Corn", examData, data, durationMinutes);
-        sessionStorage.setItem("exam", JSON.stringify({
-            examInfo: { ...data, durationMinutes },
-            questions: sessionReader().questions
-        }))
+        sessionWriter(data, questions)
         setExamData({ ...examData, ...data, durationMinutes })
         setCurrentStep(2)
     }
@@ -126,8 +199,8 @@ export default function CreateExamPage() {
             return
         }
 
-        const newQuestion: IQuestionTemp = {
-            tempId: uuidv4(),
+        const newQuestion: IQuestion = {
+            id: uuidv4(),
             content: currentQuestion.content,
             possibleAnswers: currentQuestion.possibleAnswers as string[],
             correctAnswer: currentQuestion.correctAnswer || 0,
@@ -136,12 +209,7 @@ export default function CreateExamPage() {
 
         const newQuestions = [...questions, newQuestion]
         setQuestions(newQuestions)
-
-        // Update session storage draft
-        sessionStorage.setItem("exam", JSON.stringify({
-            examInfo: getValues(),
-            questions: newQuestions
-        }))
+        sessionWriter(getValues(), newQuestions)
 
         setCurrentQuestion({
             content: "",
@@ -153,14 +221,9 @@ export default function CreateExamPage() {
 
     // Remove question from list
     const removeQuestion = (id: string) => {
-        const updatedQuestions = questions.filter((q) => q.tempId !== id)
+        const updatedQuestions = questions.filter((q) => q.id !== id)
         setQuestions(updatedQuestions)
-
-        // Update session storage draft
-        sessionStorage.setItem("exam", JSON.stringify({
-            examInfo: getValues(),
-            questions: updatedQuestions
-        }))
+        sessionWriter(getValues(), updatedQuestions)
     }
 
     // Update current question field
@@ -186,6 +249,7 @@ export default function CreateExamPage() {
     }
 
     const calculateDurationInMinutes = (startTime: string, endTime: string) => {
+        if (!startTime || !endTime) return 0;
         const durationMinutes = Math.floor((new Date(endTime!).getTime() - new Date(startTime!).getTime()) / (1000 * 60))
         return durationMinutes
     }
@@ -196,19 +260,22 @@ export default function CreateExamPage() {
             const finalData: IExamRequest = {
                 title: examData.title!,
                 description: examData.description!,
-                scheduledStartTime: examData.scheduledStartTime!,
-                scheduledEndTime: examData.scheduledEndTime!,
+                scheduledStartTime: new Date(examData.scheduledStartTime!).toISOString(),
+                scheduledEndTime: new Date(examData.scheduledEndTime!).toISOString(),
                 durationMinutes: calculateDurationInMinutes(examData.scheduledStartTime!, examData.scheduledEndTime!),
                 studentGrade: examData.studentGrade!,
                 lessonId: examData.lessonId!,
-                questions: questions, // Use the latest questions state
+                questions: questions
             }
 
-            await createExamMutation.mutateAsync(finalData)
-            sessionStorage.removeItem("exam") // Clear draft on success
-            router.push(`/teacher/${userId}/exams`)
+            await updateExamMutation(finalData, {
+                onSuccess: () => {
+                    sessionStorage.removeItem(`examEdit`)
+                    router.push(`/teacher/${userId}/exams`)
+                }
+            })
         } catch (error) {
-            console.error("Failed to create exam:", error)
+            console.error("Failed to update exam:", error)
         }
     }
 
@@ -220,9 +287,7 @@ export default function CreateExamPage() {
     ]
 
     const lessonOptions = () => {
-        if (isLoading) return <option disabled>Loading lessons...</option>
-        if (error) return <option disabled>Error loading lessons</option>
-
+        if (isLoadingLessons) return <option disabled>Loading lessons...</option>
         return (
             <>
                 <option value="">Select a lesson</option>
@@ -239,6 +304,17 @@ export default function CreateExamPage() {
         setShowConfirmDialog(false)
     }
 
+    if (isLoadingExam) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="ml-2">Loading exam details...</span>
+            </div>
+        )
+    }
+
+    console.log("Jaguar", questions);
+
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
             <div className="flex items-center mb-6">
@@ -246,6 +322,11 @@ export default function CreateExamPage() {
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Exams
                 </Button>
+            </div>
+
+            <div className="flex flex-col space-y-2">
+                <h1 className="text-3xl font-bold tracking-tight">Edit Exam</h1>
+                <p className="text-muted-foreground">Modify the details and questions of your exam.</p>
             </div>
 
             {/* Step Indicator */}
@@ -278,7 +359,7 @@ export default function CreateExamPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Exam Information</CardTitle>
-                        <CardDescription>Enter the basic details about your exam.</CardDescription>
+                        <CardDescription>Update the basic details about your exam.</CardDescription>
                     </CardHeader>
                     <form onSubmit={handleSubmitInfo(onSubmitExamInfo)}>
                         <CardContent className="space-y-4">
@@ -350,19 +431,6 @@ export default function CreateExamPage() {
                                 </div>
                             </div>
 
-                            {/* <div className="grid gap-2">
-                                <Label htmlFor="duration">Duration (minutes)*</Label>
-                                <Input
-                                    id="duration"
-                                    type="number"
-                                    placeholder="e.g. 60"
-                                    {...registerInfo("duration", { valueAsNumber: true })}
-                                    className={errorsInfo.duration ? "border-red-500" : ""}
-                                />
-                                {errorsInfo.duration && (
-                                    <p className="text-sm text-red-500">{errorsInfo.duration.message}</p>
-                                )}
-                            </div> */}
                             <div className="grid gap-2">
                                 <Label htmlFor="grade">Grade*</Label>
                                 <select
@@ -371,18 +439,9 @@ export default function CreateExamPage() {
                                     className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errorsInfo.studentGrade ? "border-red-500" : ""}`}
                                 >
                                     <option value="">Select Grade</option>
-                                    <option value="1">Grade 1</option>
-                                    <option value="2">Grade 2</option>
-                                    <option value="3">Grade 3</option>
-                                    <option value="4">Grade 4</option>
-                                    <option value="5">Grade 5</option>
-                                    <option value="6">Grade 6</option>
-                                    <option value="7">Grade 7</option>
-                                    <option value="8">Grade 8</option>
-                                    <option value="9">Grade 9</option>
-                                    <option value="10">Grade 10</option>
-                                    <option value="11">Grade 11</option>
-                                    <option value="12">Grade 12</option>
+                                    {[...Array(12)].map((_, i) => (
+                                        <option key={i + 1} value={i + 1}>Grade {i + 1}</option>
+                                    ))}
                                 </select>
                                 {errorsInfo.studentGrade && (
                                     <p className="text-sm text-red-500">{errorsInfo.studentGrade.message}</p>
@@ -391,7 +450,7 @@ export default function CreateExamPage() {
                         </CardContent>
                         <CardFooter className="flex justify-end">
                             <Button type="submit">
-                                Next: Add Questions
+                                Next: Edit Questions
                                 <ChevronRight className="ml-2 h-4 w-4" />
                             </Button>
                         </CardFooter>
@@ -404,8 +463,8 @@ export default function CreateExamPage() {
                 <div className="space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Add Questions</CardTitle>
-                            <CardDescription>Create questions with 4 possible answers each.</CardDescription>
+                            <CardTitle>Questions</CardTitle>
+                            <CardDescription>Edit existing questions or add new ones.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid gap-2">
@@ -440,7 +499,6 @@ export default function CreateExamPage() {
                                         </span>
                                     </div>
                                 ))}
-                                <p className="text-sm text-muted-foreground">Select the radio button for the correct answer</p>
                             </div>
 
                             <Button type="button" onClick={addQuestion} variant="outline" className="w-full">
@@ -449,6 +507,7 @@ export default function CreateExamPage() {
                             </Button>
                         </CardContent>
                     </Card>
+
                     <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
                         <DialogContent>
                             <DialogHeader>
@@ -457,19 +516,12 @@ export default function CreateExamPage() {
                                     Please fill in the question and all 4 answers.
                                 </DialogDescription>
                             </DialogHeader>
-                            <DialogFooter className="gap-2">
-                                {/* <Button variant="outline" onClick={handleCancel}>
-                                    Cancel
-                                </Button>
-                                <Button variant="destructive" onClick={handleDiscard}>
-                                    Discard
-                                </Button> */}
-                                <Button onClick={handleSaveAsDraft}>
-                                    Ok
-                                </Button>
+                            <DialogFooter>
+                                <Button onClick={handleSaveAsDraft}>Ok</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
+
                     {/* Questions List */}
                     {questions.length > 0 && (
                         <Card>
@@ -484,15 +536,28 @@ export default function CreateExamPage() {
                                                 <p className="font-medium">Question {index + 1}</p>
                                                 <p className="text-sm mt-1">{q.content}</p>
                                             </div>
-                                            <Button
-                                                id={q?.tempId}
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => removeQuestion(q?.tempId)}
-                                            >
-                                                <Trash2 className="h-4 w-4 text-red-500" />
-                                            </Button>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setCurrentQuestion(q)
+                                                        setQuestions(questions.filter(item => item.id !== q.id))
+                                                    }}
+                                                >
+                                                    <ChevronLeft className="h-4 w-4" />
+                                                    Edit
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => removeQuestion(q.id!)}
+                                                >
+                                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                                </Button>
+                                            </div>
                                         </div>
                                         <div className="grid gap-1 text-sm">
                                             {q.possibleAnswers.map((answer, aIndex) => (
@@ -530,11 +595,10 @@ export default function CreateExamPage() {
             {currentStep === 3 && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>Review & Submit</CardTitle>
-                        <CardDescription>Review all exam details before submitting.</CardDescription>
+                        <CardTitle>Review & Save Changes</CardTitle>
+                        <CardDescription>Review all exam details before saving.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {/* Exam Info Review */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-lg font-semibold">Exam Information</h3>
@@ -543,44 +607,27 @@ export default function CreateExamPage() {
                                 </Button>
                             </div>
                             <div className="grid gap-2 text-sm">
-                                <div>
-                                    <span className="font-medium">Title:</span> {examData.title}
-                                </div>
-                                <div>
-                                    <span className="font-medium">Lesson:</span> {lessons?.find(l => l.id === examData.lessonId)?.title || examData.lessonId}
-                                </div>
-                                <div>
-                                    <span className="font-medium">Grade:</span> Grade {examData.studentGrade}
-                                </div>
-                                <div>
-                                    <span className="font-medium">Description:</span> {examData.description}
-                                </div>
-                                <div>
-                                    <span className="font-medium">Start Time:</span>{" "}
-                                    {examData.scheduledStartTime && new Date(examData.scheduledStartTime).toLocaleString()}
-                                </div>
-                                <div>
-                                    <span className="font-medium">End Time:</span>{" "}
-                                    {examData.scheduledEndTime && new Date(examData.scheduledEndTime).toLocaleString()}
-                                </div>
-                                <div>
-                                    <span className="font-medium">Duration:</span> {calculateDurationInMinutes(examData.scheduledStartTime!, examData.scheduledEndTime!)} minutes
-                                </div>
+                                <div><span className="font-medium">Title:</span> {examData.title}</div>
+                                <div><span className="font-medium">Lesson:</span> {lessons?.find(l => l.id === examData.lessonId)?.title || examData.lessonId}</div>
+                                <div><span className="font-medium">Grade:</span> Grade {examData.studentGrade}</div>
+                                <div><span className="font-medium">Description:</span> {examData.description}</div>
+                                <div><span className="font-medium">Start Time:</span> {examData.scheduledStartTime && new Date(examData.scheduledStartTime).toLocaleString()}</div>
+                                <div><span className="font-medium">End Time:</span> {examData.scheduledEndTime && new Date(examData.scheduledEndTime).toLocaleString()}</div>
+                                <div><span className="font-medium">Duration:</span> {calculateDurationInMinutes(examData.scheduledStartTime!, examData.scheduledEndTime!)} minutes</div>
                             </div>
                         </div>
 
                         <hr />
 
-                        {/* Questions Review */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold">Questions ({examData.questions?.length})</h3>
+                                <h3 className="text-lg font-semibold">Questions ({questions.length})</h3>
                                 <Button variant="ghost" size="sm" onClick={() => setCurrentStep(2)}>
                                     Edit
                                 </Button>
                             </div>
                             <div className="space-y-4">
-                                {examData.questions?.map((q, index) => (
+                                {questions.map((q, index) => (
                                     <div key={index} className="border rounded-lg p-4 space-y-2">
                                         <p className="font-medium">Question {index + 1}</p>
                                         <p className="text-sm">{q.content}</p>
@@ -611,10 +658,10 @@ export default function CreateExamPage() {
                         <Button
                             type="button"
                             onClick={onSubmitExam}
-                            disabled={createExamMutation.isPending}
+                            disabled={isUpdatingExam}
                         >
-                            {createExamMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Submit Exam
+                            {isUpdatingExam && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Update Exam
                         </Button>
                     </CardFooter>
                 </Card>
