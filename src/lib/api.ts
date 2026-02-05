@@ -28,7 +28,10 @@ export const apiConfig = {
         const response = await api.get<T>(url);
         return response.data;
     },
-
+    getByQuery: async <T>(url: string, params: any): Promise<T> => {
+        const response = await api.get<T>(url, { params });
+        return response.data;
+    },
     post: async <T>(url: string, data?: any): Promise<T> => {
         const response = await api.post<T>(url, data);
         return response.data;

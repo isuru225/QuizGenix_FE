@@ -99,7 +99,7 @@ export default function CreateExamPage() {
     }, [reset])
 
     // Step 2: Questions state
-    const [questions, setQuestions] = React.useState<IQuestionTemp[]>([])
+    const [questions, setQuestions] = React.useState<IQuestion[]>([])
     const [currentQuestion, setCurrentQuestion] = React.useState<Partial<IQuestion>>({
         content: "",
         possibleAnswers: ["", "", "", ""],
@@ -126,8 +126,8 @@ export default function CreateExamPage() {
             return
         }
 
-        const newQuestion: IQuestionTemp = {
-            tempId: uuidv4(),
+        const newQuestion: IQuestion = {
+            id: currentQuestion.id ? currentQuestion.id : uuidv4(),
             content: currentQuestion.content,
             possibleAnswers: currentQuestion.possibleAnswers as string[],
             correctAnswer: currentQuestion.correctAnswer || 0,
@@ -153,7 +153,7 @@ export default function CreateExamPage() {
 
     // Remove question from list
     const removeQuestion = (id: string) => {
-        const updatedQuestions = questions.filter((q) => q.tempId !== id)
+        const updatedQuestions = questions.filter((q) => q.id !== id)
         setQuestions(updatedQuestions)
 
         // Update session storage draft
@@ -485,11 +485,11 @@ export default function CreateExamPage() {
                                                 <p className="text-sm mt-1">{q.content}</p>
                                             </div>
                                             <Button
-                                                id={q?.tempId}
+                                                id={q?.id}
                                                 type="button"
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={() => removeQuestion(q?.tempId)}
+                                                onClick={() => removeQuestion(q?.id)}
                                             >
                                                 <Trash2 className="h-4 w-4 text-red-500" />
                                             </Button>

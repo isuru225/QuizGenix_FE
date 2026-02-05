@@ -47,7 +47,7 @@ export default function EditExamPage() {
     const examId = params?.examId as string
 
     const { data: existingExam, isLoading: isLoadingExam } = useExam(examId)
-    const { mutateAsync: updateExamMutation, isPending: isUpdatingExam } = useUpdateExam(userId, examId)
+    const { mutateAsync: updateExamMutation, isPending: isUpdatingExam } = useUpdateExam(examId)
     const { data: lessons, isLoading: isLoadingLessons } = useLessons(userId)
 
     // Multi-step state
@@ -82,55 +82,6 @@ export default function EditExamPage() {
         return new Date(date.getTime() - tzoffset).toISOString().slice(0, 16);
     }
 
-    // Load initial values from API or sessionStorage
-    // React.useEffect(() => {
-    //     // Don't try to set form values until lessons are loaded
-    //     if (isLoadingLessons) return;
-
-    //     const savedExam = sessionStorage.getItem(`examEdit`)
-
-    //     if (savedExam) {
-    //         try {
-    //             const parsed = JSON.parse(savedExam)
-    //             if (parsed.examInfo) {
-    //                 const formattedInfo = {
-    //                     title: parsed.examInfo.title || "",
-    //                     description: parsed.examInfo.description || "",
-    //                     scheduledStartTime: formatDateForInput(parsed.examInfo.scheduledStartTime) || "",
-    //                     scheduledEndTime: formatDateForInput(parsed.examInfo.scheduledEndTime) || "",
-    //                     studentGrade: parsed.examInfo.studentGrade || 0,
-    //                     lessonId: parsed.examInfo.lessonId || "",
-    //                 }
-
-    //                 reset(formattedInfo) // No setTimeout needed!
-    //                 setExamData(prev => ({ ...prev, ...formattedInfo }))
-    //             }
-    //             if (parsed.questions) {
-    //                 setQuestions(parsed.questions)
-    //             }
-    //         } catch (e) {
-    //             console.error("Error loading exam draft", e)
-    //         }
-    //     } else if (existingExam) {
-    //         const initialInfo = {
-    //             title: existingExam.title,
-    //             description: existingExam.description,
-    //             scheduledStartTime: formatDateForInput(existingExam.scheduledStartTime),
-    //             scheduledEndTime: formatDateForInput(existingExam.scheduledEndTime),
-    //             studentGrade: existingExam.studentGrade,
-    //             lessonId: existingExam.lessonId,
-    //         }
-
-    //         reset(initialInfo) // No setTimeout needed!
-    //         setExamData(initialInfo)
-
-    //         const initialQuestions = existingExam.questions.map(q => ({
-    //             ...q,
-    //             tempId: uuidv4()
-    //         }))
-    //         setQuestions(initialQuestions)
-    //     }
-    // }, [existingExam, reset, examId, isLoadingLessons]) // Add isLoadingLessons!
 
     useEffect(() => {
         if (existingExam) {
@@ -200,7 +151,7 @@ export default function EditExamPage() {
         }
 
         const newQuestion: IQuestion = {
-            id: uuidv4(),
+            id: currentQuestion.id ? currentQuestion.id : uuidv4(),
             content: currentQuestion.content,
             possibleAnswers: currentQuestion.possibleAnswers as string[],
             correctAnswer: currentQuestion.correctAnswer || 0,
